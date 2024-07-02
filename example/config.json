@@ -22,7 +22,7 @@
 	"assetConnections": [],
 	"submodelTemplateProcessors": [
 		{
-			"@class": "de.fraunhofer.iosb.ilt.faaast.service.submodeltemplate.simulation.SimulationSubmodelTemplateProcessor"
+			"@class": "eu.modapto.faaast.service.smt.simulation.SimulationSubmodelTemplateProcessor"
 		}
 	]
 }
