@@ -269,7 +269,7 @@ public class FmuHelper {
                                 .text(variable.getDescription())
                                 .build())
                         .valueType(convertDatatypeFromFmuToAas(variable.getType()))
-                        .value(variable.getInitial().toString())
+                        .value(Objects.toString(variable.getInitial(), null))
                         .build())
                 .build();
     }

@@ -38,6 +38,7 @@ import java.util.UUID;
 import java.util.stream.Stream;
 import no.ntnu.ihb.fmi4j.importer.fmi2.CoSimulationSlave;
 import no.ntnu.ihb.fmi4j.importer.fmi2.Fmu;
+import org.eclipse.digitaltwin.aas4j.v3.model.AasSubmodelElements;
 import org.eclipse.digitaltwin.aas4j.v3.model.DataTypeDefXsd;
 import org.eclipse.digitaltwin.aas4j.v3.model.KeyTypes;
 import org.eclipse.digitaltwin.aas4j.v3.model.Operation;
@@ -409,6 +410,7 @@ public class SimulationSubmodelTemplateProcessor implements SubmodelTemplateProc
         return new DefaultOperationVariable.Builder()
                 .value(new DefaultSubmodelElementList.Builder()
                         .idShort(ARG_ARGS_PER_STEP_ID)
+                        .typeValueListElement(AasSubmodelElements.SUBMODEL_ELEMENT_COLLECTION)
                         .value(new DefaultSubmodelElementCollection.Builder()
                                 .value(
                                         Stream.concat(
@@ -428,6 +430,7 @@ public class SimulationSubmodelTemplateProcessor implements SubmodelTemplateProc
         return new DefaultOperationVariable.Builder()
                 .value(new DefaultSubmodelElementList.Builder()
                         .idShort(ARG_RESULT_PER_STEP_ID)
+                        .typeValueListElement(AasSubmodelElements.SUBMODEL_ELEMENT_COLLECTION)
                         .value(new DefaultSubmodelElementCollection.Builder()
                                 .value(
                                         Stream.concat(
