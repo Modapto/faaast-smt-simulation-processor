@@ -48,7 +48,7 @@
     </distributionManagement>-->
     <properties>
         <checkstyle.version>10.16.0</checkstyle.version>
-        <faaast-service.version>1.1.0-SNAPSHOT</faaast-service.version>
+        <faaast-service.version>1.2.0-SNAPSHOT</faaast-service.version>
         <fmi4j.version>0.38.0</fmi4j.version>
         <jaxb-runtime.version>2.3.3</jaxb-runtime.version>
         <junit.version>4.13.2</junit.version>

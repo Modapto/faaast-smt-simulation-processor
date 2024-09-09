@@ -21,12 +21,12 @@ import de.fraunhofer.iosb.ilt.faaast.service.config.CoreConfig;
 import de.fraunhofer.iosb.ilt.faaast.service.exception.ConfigurationInitializationException;
 import de.fraunhofer.iosb.ilt.faaast.service.model.SemanticIdPath;
 import de.fraunhofer.iosb.ilt.faaast.service.model.api.request.submodel.GetFileByPathRequest;
+import de.fraunhofer.iosb.ilt.faaast.service.model.submodeltemplate.Cardinality;
 import de.fraunhofer.iosb.ilt.faaast.service.submodeltemplate.SubmodelTemplateProcessor;
 import de.fraunhofer.iosb.ilt.faaast.service.util.DeepCopyHelper;
 import de.fraunhofer.iosb.ilt.faaast.service.util.LambdaExceptionHelper;
 import de.fraunhofer.iosb.ilt.faaast.service.util.ReferenceBuilder;
 import de.fraunhofer.iosb.ilt.faaast.service.util.ReferenceHelper;
-import de.fraunhofer.iosb.ilt.faaast.service.util.StringHelper;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -44,6 +44,7 @@ import org.eclipse.digitaltwin.aas4j.v3.model.KeyTypes;
 import org.eclipse.digitaltwin.aas4j.v3.model.Operation;
 import org.eclipse.digitaltwin.aas4j.v3.model.OperationVariable;
 import org.eclipse.digitaltwin.aas4j.v3.model.Property;
+import org.eclipse.digitaltwin.aas4j.v3.model.QualifierKind;
 import org.eclipse.digitaltwin.aas4j.v3.model.Reference;
 import org.eclipse.digitaltwin.aas4j.v3.model.Submodel;
 import org.eclipse.digitaltwin.aas4j.v3.model.SubmodelElement;
@@ -53,6 +54,7 @@ import org.eclipse.digitaltwin.aas4j.v3.model.impl.DefaultLangStringTextType;
 import org.eclipse.digitaltwin.aas4j.v3.model.impl.DefaultOperation;
 import org.eclipse.digitaltwin.aas4j.v3.model.impl.DefaultOperationVariable;
 import org.eclipse.digitaltwin.aas4j.v3.model.impl.DefaultProperty;
+import org.eclipse.digitaltwin.aas4j.v3.model.impl.DefaultQualifier;
 import org.eclipse.digitaltwin.aas4j.v3.model.impl.DefaultSubmodelElementCollection;
 import org.eclipse.digitaltwin.aas4j.v3.model.impl.DefaultSubmodelElementList;
 import org.slf4j.Logger;
@@ -348,8 +350,7 @@ public class SimulationSubmodelTemplateProcessor implements SubmodelTemplateProc
             SubmodelElementList argumentsList = (SubmodelElementList) argument.getValue();
             for (SubmodelElement argumentsPerStep: argumentsList.getValue()) {
                 if (Objects.isNull(argumentsPerStep)
-                        || !SubmodelElementCollection.class.isInstance(argumentsPerStep)
-                        || StringHelper.isEmpty(argumentsPerStep.getIdShort())) {
+                        || !SubmodelElementCollection.class.isInstance(argumentsPerStep)) {
                     continue;
                 }
                 SubmodelElementCollection argumentsCollection = (SubmodelElementCollection) argumentsPerStep;
@@ -358,7 +359,7 @@ public class SimulationSubmodelTemplateProcessor implements SubmodelTemplateProc
                         .filter(x -> Objects.equals(ARG_STEP_NUMBER_ID, x.getIdShort()))
                         .filter(Property.class::isInstance)
                         .map(Property.class::cast)
-                        .filter(x -> Objects.equals(DataTypeDefXsd.INTEGER, x.getValue()))
+                        .filter(x -> Objects.equals(DataTypeDefXsd.INTEGER, x.getValueType()))
                         .findFirst();
                 if (!stepNumber.isPresent()) {
                     throw new IllegalArgumentException(String.format("SubmodelElementCollection missing argument %s", ARG_STEP_NUMBER_ID));
@@ -420,6 +421,12 @@ public class SimulationSubmodelTemplateProcessor implements SubmodelTemplateProc
                                                         .build()),
                                                 originalArgs.stream().map(OperationVariable::getValue))
                                                 .toList())
+                                .qualifiers(new DefaultQualifier.Builder()
+                                        .kind(QualifierKind.TEMPLATE_QUALIFIER)
+                                        .valueType(DataTypeDefXsd.STRING)
+                                        .value(Cardinality.ZERO_TO_MANY.getNameForSerialization())
+                                        .type(Cardinality.class.getSimpleName())
+                                        .build())
                                 .build())
                         .build())
                 .build();
