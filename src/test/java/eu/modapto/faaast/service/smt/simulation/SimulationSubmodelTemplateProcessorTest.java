@@ -17,7 +17,7 @@ package eu.modapto.faaast.service.smt.simulation;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
-import de.fraunhofer.iosb.ilt.faaast.service.ServiceContext;
+import de.fraunhofer.iosb.ilt.faaast.service.Service;
 import de.fraunhofer.iosb.ilt.faaast.service.assetconnection.AssetConnectionException;
 import de.fraunhofer.iosb.ilt.faaast.service.assetconnection.AssetConnectionManager;
 import de.fraunhofer.iosb.ilt.faaast.service.config.CoreConfig;
@@ -50,19 +50,19 @@ import org.mockito.Mockito;
 public class SimulationSubmodelTemplateProcessorTest {
 
     private static SimulationSubmodelTemplateProcessor processor;
-    private static ServiceContext serviceContext;
+    private static Service service;
     private static AssetConnectionManager assetConnectionManager;
 
     @BeforeClass
     public static void init() throws ConfigurationException, DeserializationException, ResourceNotFoundException {
         processor = new SimulationSubmodelTemplateProcessor();
-        serviceContext = Mockito.mock(ServiceContext.class);
-        assetConnectionManager = new AssetConnectionManager(CoreConfig.DEFAULT, List.of(), serviceContext);
-        processor.init(CoreConfig.DEFAULT, new SimulationSubmodelTemplateProcessorConfig(), serviceContext);
+        service = Mockito.mock(Service.class);
+        assetConnectionManager = new AssetConnectionManager(CoreConfig.DEFAULT, List.of(), service);
+        processor.init(CoreConfig.DEFAULT, new SimulationSubmodelTemplateProcessorConfig(), service);
         EnvironmentContext environment = new AasxEnvironmentDeserializer()
                 .read(SimulationSubmodelTemplateProcessorTest.class.getResourceAsStream("/aas-with-bouncing-ball.aasx"));
 
-        when(serviceContext.execute(any())).thenReturn(GetFileByPathResponse.builder()
+        when(service.execute(any())).thenReturn(GetFileByPathResponse.builder()
                 .payload(new TypedInMemoryFile.Builder()
                         .content(environment.getFiles().get(0).getFileContent())
                         .build())

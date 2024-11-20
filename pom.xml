@@ -5,7 +5,7 @@
     <artifactId>smt-simulation</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
-    <name>smt-simulation</name>
+    <name>smt-simulation-processor</name>
     <description>Support for SubmodelTemplate Simulation including FMUs</description>
     <inceptionYear>2024</inceptionYear>
     <organization>
@@ -16,12 +16,6 @@
         <developer>
             <name>Michael Jacoby</name>
             <email>michael.jacoby@iosb.fraunhofer.de</email>
-            <organization>Fraunhofer IOSB</organization>
-            <organizationUrl>https://www.iosb.fraunhofer.de</organizationUrl>
-        </developer>
-        <developer>
-            <name>Jens Mueller</name>
-            <email>jens.mueller@iosb.fraunhofer.de</email>
             <organization>Fraunhofer IOSB</organization>
             <organizationUrl>https://www.iosb.fraunhofer.de</organizationUrl>
         </developer>
@@ -64,6 +58,7 @@
         <maven.plugin.source.version>3.3.1</maven.plugin.source.version>
         <maven.plugin.spotless.version>2.43.0</maven.plugin.spotless.version>
         <mockito.version>5.12.0</mockito.version>
+        <plugin-versions.version>2.17.1</plugin-versions.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <slf4j.ext.version>1.0.0-jdk6</slf4j.ext.version>
         <slf4j.test.version>3.0.1</slf4j.test.version>
@@ -234,6 +229,11 @@
                             </goals>
                         </execution>
                     </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>versions-maven-plugin</artifactId>
+                    <version>${plugin-versions.version}</version>
                 </plugin>
             </plugins>
         </pluginManagement>
