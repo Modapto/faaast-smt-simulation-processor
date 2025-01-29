@@ -12,7 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package eu.modapto.faaast.service.smt.simulation;
+package eu.modapto.dt.faaast.service.smt.simulation;
 
 import static no.ntnu.ihb.fmi4j.modeldescription.variables.VariableType.STRING;
 import static org.eclipse.digitaltwin.aas4j.v3.model.DataTypeDefXsd.BOOLEAN;

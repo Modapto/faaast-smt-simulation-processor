@@ -30,11 +30,12 @@ import de.fraunhofer.iosb.ilt.faaast.service.model.TypedInMemoryFile;
 import de.fraunhofer.iosb.ilt.faaast.service.model.api.response.submodel.GetFileByPathResponse;
 import de.fraunhofer.iosb.ilt.faaast.service.model.exception.ResourceNotFoundException;
 import de.fraunhofer.iosb.ilt.faaast.service.util.ReferenceBuilder;
+import eu.modapto.dt.faaast.service.smt.simulation.SimulationSubmodelTemplateProcessor;
+import eu.modapto.dt.faaast.service.smt.simulation.SimulationSubmodelTemplateProcessorConfig;
 import java.io.IOException;
 import java.util.List;
 import org.eclipse.digitaltwin.aas4j.v3.model.DataTypeDefXsd;
 import org.eclipse.digitaltwin.aas4j.v3.model.OperationVariable;
-import org.eclipse.digitaltwin.aas4j.v3.model.Property;
 import org.eclipse.digitaltwin.aas4j.v3.model.Reference;
 import org.eclipse.digitaltwin.aas4j.v3.model.Submodel;
 import org.eclipse.digitaltwin.aas4j.v3.model.impl.DefaultOperationVariable;
@@ -71,78 +72,12 @@ public class SimulationSubmodelTemplateProcessorTest {
         processor.process(submodel, assetConnectionManager);
     }
 
-    private static final Reference createInstanceOperationRef = ReferenceBuilder.forSubmodel(
+    private static final Reference runSimulationOperationRef = ReferenceBuilder.forSubmodel(
             "https://example.com/ids/sm/4163_9072_2032_6099",
-            "SimulationModel01-CreateInstance");;
-
-    private static Reference doStepOperationRef = ReferenceBuilder.forSubmodel(
-            "https://example.com/ids/sm/4163_9072_2032_6099",
-            "SimulationModel01-DoStep");
-
-    private static Reference runSimulationOperationRef = ReferenceBuilder.forSubmodel(
-            "https://example.com/ids/sm/4163_9072_2032_6099",
-            "SimulationModel01-RunSimulation");
+            "SimulationModel01");
 
     @Test
-    public void testExecuteDoStep()
-            throws ConfigurationInitializationException, ConfigurationException, ResourceNotFoundException, AssetConnectionException, DeserializationException, IOException {
-
-        OperationVariable[] createInstanceResult = assetConnectionManager.getOperationProvider(createInstanceOperationRef).invoke(new OperationVariable[] {},
-                new OperationVariable[] {});
-        Assert.assertNotNull(createInstanceResult);
-        Assert.assertEquals(1, createInstanceResult.length);
-        Assert.assertTrue(Property.class.isInstance(createInstanceResult[0].getValue()));
-
-        String instanceName = ((Property) createInstanceResult[0].getValue()).getValue();
-
-        OperationVariable[] doStepExpectedResult = new OperationVariable[] {
-                new DefaultOperationVariable.Builder()
-                        .value(new DefaultProperty.Builder()
-                                .idShort("h")
-                                .valueType(DataTypeDefXsd.DOUBLE)
-                                .value("0.99955855")
-                                .build())
-                        .build(),
-                new DefaultOperationVariable.Builder()
-                        .value(new DefaultProperty.Builder()
-                                .idShort("v")
-                                .valueType(DataTypeDefXsd.DOUBLE)
-                                .value("-0.0981")
-                                .build())
-                        .build(),
-        };
-        OperationVariable[] doStepResult = assetConnectionManager.getOperationProvider(doStepOperationRef).invoke(
-                new OperationVariable[] {
-                        new DefaultOperationVariable.Builder()
-                                .value(new DefaultProperty.Builder()
-                                        .idShort("instanceName")
-                                        .valueType(DataTypeDefXsd.STRING)
-                                        .value(instanceName)
-                                        .build())
-                                .build(),
-                        new DefaultOperationVariable.Builder()
-                                .value(new DefaultProperty.Builder()
-                                        .idShort("currentTime")
-                                        .valueType(DataTypeDefXsd.DOUBLE)
-                                        .value("0")
-                                        .build())
-                                .build(),
-                        new DefaultOperationVariable.Builder()
-                                .value(new DefaultProperty.Builder()
-                                        .idShort("timeStep")
-                                        .valueType(DataTypeDefXsd.DOUBLE)
-                                        .value("0.01")
-                                        .build())
-                                .build(),
-                },
-                new OperationVariable[] {});
-
-        Assert.assertArrayEquals(doStepExpectedResult, doStepResult);
-    }
-
-
-    @Test
-    public void testExecuteRunSimulation()
+    public void testExecuteSimulation()
             throws ConfigurationInitializationException, ConfigurationException, ResourceNotFoundException, AssetConnectionException, DeserializationException, IOException {
 
         OperationVariable[] input = new OperationVariable[] {

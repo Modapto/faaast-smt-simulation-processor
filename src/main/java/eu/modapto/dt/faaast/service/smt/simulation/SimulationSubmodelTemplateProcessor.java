@@ -12,7 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package eu.modapto.faaast.service.smt.simulation;
+package eu.modapto.dt.faaast.service.smt.simulation;
 
 import de.fraunhofer.iosb.ilt.faaast.service.ServiceContext;
 import de.fraunhofer.iosb.ilt.faaast.service.assetconnection.AssetConnectionManager;
@@ -23,12 +23,10 @@ import de.fraunhofer.iosb.ilt.faaast.service.model.SemanticIdPath;
 import de.fraunhofer.iosb.ilt.faaast.service.model.api.request.submodel.GetFileByPathRequest;
 import de.fraunhofer.iosb.ilt.faaast.service.model.submodeltemplate.Cardinality;
 import de.fraunhofer.iosb.ilt.faaast.service.submodeltemplate.SubmodelTemplateProcessor;
-import de.fraunhofer.iosb.ilt.faaast.service.util.DeepCopyHelper;
 import de.fraunhofer.iosb.ilt.faaast.service.util.LambdaExceptionHelper;
 import de.fraunhofer.iosb.ilt.faaast.service.util.ReferenceBuilder;
 import de.fraunhofer.iosb.ilt.faaast.service.util.ReferenceHelper;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -91,6 +89,8 @@ public class SimulationSubmodelTemplateProcessor implements SubmodelTemplateProc
     private static final String ARG_ARGS_PER_STEP_ID = "argumentsPerStep";
     private static final String ARG_RESULT_PER_STEP_ID = "resultPerStep";
 
+    private static final String SMC_SIMULATION_MODELS_PREFIX = "SimulationModel_";
+
     private static final OperationVariable ARG_INSTANCE_NAME = new DefaultOperationVariable.Builder()
             .value(new DefaultProperty.Builder()
                     .idShort(ARG_INSTANCE_NAME_ID)
@@ -152,16 +152,27 @@ public class SimulationSubmodelTemplateProcessor implements SubmodelTemplateProc
     }
 
 
+    private String getModelName(SubmodelElementCollection modelSMC) {
+        String result = modelSMC.getIdShort();
+        if (result.toLowerCase().startsWith(SMC_SIMULATION_MODELS_PREFIX.toLowerCase())) {
+            result = result.substring(SMC_SIMULATION_MODELS_PREFIX.length());
+        }
+        return result;
+    }
+
+
     @Override
     public boolean process(Submodel submodel, AssetConnectionManager assetConnectionManager) {
-        List<SubmodelElement> modelSMCs = submodel.getSubmodelElements().stream()
+        List<SubmodelElementCollection> modelSMCs = submodel.getSubmodelElements().stream()
                 .filter(Objects::nonNull)
                 .filter(SubmodelElementCollection.class::isInstance)
+                .map(SubmodelElementCollection.class::cast)
                 .toList();
         LOGGER.debug("Found {} simulation model SMCs for submodel (idShort: {}, id: {})", modelSMCs.size(), submodel.getIdShort(), submodel.getId());
         boolean modified = false;
-        for (SubmodelElement modelSMC: modelSMCs) {
+        for (SubmodelElementCollection modelSMC: modelSMCs) {
             try {
+                String name = getModelName(modelSMC);
                 Reference fmuFileRef = SEMANTIC_ID_PATH_TO_FMU_FILE.resolveUnique(submodel, KeyTypes.FILE);
                 byte[] fmuBinary = serviceContext.execute(GetFileByPathRequest.builder()
                         .submodelId(ReferenceHelper.findFirstKeyType(fmuFileRef, KeyTypes.SUBMODEL))
@@ -169,12 +180,9 @@ public class SimulationSubmodelTemplateProcessor implements SubmodelTemplateProc
                         .build())
                         .getPayload()
                         .getContent();
-                Fmu fmu = FmuHelper.loadFmu(modelSMC.getIdShort(), fmuBinary);
+                Fmu fmu = FmuHelper.loadFmu(name, fmuBinary);
                 fmus.put(ReferenceBuilder.forSubmodel(submodel, modelSMC), fmu);
-                addCreateInstanceOperation(submodel, assetConnectionManager, modelSMC.getIdShort(), fmu);
-                addDestroyInstanceOperation(submodel, assetConnectionManager, modelSMC.getIdShort(), fmu);
-                addDoStepOperation(submodel, assetConnectionManager, modelSMC.getIdShort(), fmu);
-                addRunSimulationOperation(submodel, assetConnectionManager, modelSMC.getIdShort(), fmu);
+                addRunSimulationOperation(submodel, assetConnectionManager, name, fmu);
                 modified = true;
             }
             catch (IOException e) {
@@ -185,110 +193,27 @@ public class SimulationSubmodelTemplateProcessor implements SubmodelTemplateProc
     }
 
 
-    private void addCreateInstanceOperation(Submodel submodel, AssetConnectionManager assetConnectionManager, String modelName, Fmu fmu) throws IOException {
-        Operation operation = new DefaultOperation.Builder()
-                .idShort(String.format("%s-CreateInstance", modelName))
-                .inputVariables(FmuHelper.getInputArgumentsMetadata(fmu))
-                .outputVariables(ARG_INSTANCE_NAME)
-                .build();
-        submodel.getSubmodelElements().add(operation);
-        assetConnectionManager.registerLambdaOperationProvider(
-                ReferenceBuilder.forSubmodel(submodel, operation),
-                LambdaOperationProvider.builder()
-                        .handle(LambdaExceptionHelper.rethrowBiFunction((OperationVariable[] input, OperationVariable[] inoutput) -> {
-                            return handleCreateInstanceOperation(modelName, fmu, input, inoutput);
-                        }))
-                        .build());
-    }
-
-
-    private OperationVariable[] handleCreateInstanceOperation(String modelName, Fmu fmu, OperationVariable[] input, OperationVariable[] inoutput) throws IOException {
-        String instanceName = String.format("%s-%s", modelName, UUID.randomUUID());
-        CoSimulationSlave fmuInstance = FmuHelper.createInstance(instanceName, fmu, Arrays.asList(input));
-        fmuInstances.put(instanceName, fmuInstance);
-        return new OperationVariable[] {
-                newInstanceNameArg(instanceName)
-        };
-    }
-
-
-    private void addDestroyInstanceOperation(Submodel submodel, AssetConnectionManager assetConnectionManager, String modelName, Fmu fmu) throws IOException {
-        Operation operation = new DefaultOperation.Builder()
-                .idShort(String.format("%s-DestroyInstance", modelName))
-                .inputVariables(List.of(ARG_INSTANCE_NAME))
-                .outputVariables(List.of())
-                .build();
-        submodel.getSubmodelElements().add(operation);
-        assetConnectionManager.registerLambdaOperationProvider(
-                ReferenceBuilder.forSubmodel(submodel, operation),
-                LambdaOperationProvider.builder()
-                        .handle(LambdaExceptionHelper.rethrowBiFunction(this::handleDestroyInstanceOperation))
-                        .build());
-    }
-
-
-    private OperationVariable[] handleDestroyInstanceOperation(OperationVariable[] input, OperationVariable[] inoutput) throws IOException {
-        String instanceName = requireArgument(input, ARG_INSTANCE_NAME_ID, DataTypeDefXsd.STRING);
-        if (!fmuInstances.containsKey(instanceName)) {
-            throw new IllegalArgumentException(String.format("instance does not exist (name: %s)", instanceName));
-        }
-        CoSimulationSlave fmuInstance = fmuInstances.get(instanceName);
-        fmuInstance.close();
-        fmuInstances.remove(instanceName);
-        return new OperationVariable[] {};
-    }
-
-
-    private void addDoStepOperation(Submodel submodel, AssetConnectionManager assetConnectionManager, String modelName, Fmu fmu) throws IOException {
-        List<OperationVariable> inputVariables = FmuHelper.getInputArgumentsMetadata(fmu);
-        inputVariables.add(0, ARG_INSTANCE_NAME);
-        inputVariables.add(1, ARG_CURRENT_TIME);
-        inputVariables.add(2, ARG_TIME_STEP);
-        Operation operation = new DefaultOperation.Builder()
-                .idShort(String.format("%s-DoStep", modelName))
-                .inputVariables(inputVariables)
-                .outputVariables(FmuHelper.getOutputArgumentsMetadata(fmu))
-                .build();
-        submodel.getSubmodelElements().add(operation);
-        assetConnectionManager.registerLambdaOperationProvider(
-                ReferenceBuilder.forSubmodel(submodel, operation),
-                LambdaOperationProvider.builder()
-                        .handle(LambdaExceptionHelper.rethrowBiFunction(this::handleDoStepOperation))
-                        .build());
-    }
-
-
-    private OperationVariable[] handleDoStepOperation(OperationVariable[] input, OperationVariable[] inoutput) throws IOException {
-        String instanceName = requireArgument(input, ARG_INSTANCE_NAME_ID, DataTypeDefXsd.STRING);
-        if (!fmuInstances.containsKey(instanceName)) {
-            throw new IllegalArgumentException(String.format("instance does not exist (name: %s)", instanceName));
-        }
-        CoSimulationSlave fmuInstance = fmuInstances.get(instanceName);
-        double t = Double.parseDouble(requireArgument(input, ARG_CURRENT_TIME_ID, DataTypeDefXsd.DOUBLE));
-        double dt = Double.parseDouble(requireArgument(input, ARG_TIME_STEP_ID, DataTypeDefXsd.DOUBLE));
-        FmuHelper.setFmuInputVariablesFromAas(fmuInstance, Arrays.asList(input));
-        fmuInstance.doStep(t, dt);
-        if (!fmuInstance.getLastStatus().isOK()) {
-            throw new RuntimeException(String.format("executing FMU step failed"));
-        }
-        return FmuHelper.getOutputArgumentsWithValues(fmuInstance).toArray(OperationVariable[]::new);
-    }
-
-
     private void addRunSimulationOperation(Submodel submodel, AssetConnectionManager assetConnectionManager, String modelName, Fmu fmu) throws IOException {
-        List<OperationVariable> inputVariables = List.of(
-                ARG_CURRENT_TIME,
-                ARG_TIME_STEP,
-                ARG_STEP_COUNT,
-                newMultiStepArg(FmuHelper.getInputArgumentsMetadata(fmu)));
-        List<OperationVariable> outputVariables = List.of(newMultiStepResult(FmuHelper.getOutputArgumentsMetadata(fmu)));
-
-        Operation operation = new DefaultOperation.Builder()
-                .idShort(String.format("%s-RunSimulation", modelName))
-                .inputVariables(inputVariables)
-                .outputVariables(outputVariables)
-                .build();
-        submodel.getSubmodelElements().add(operation);
+        Operation operation = submodel.getSubmodelElements().stream()
+                .filter(x -> Objects.equals(modelName, x.getIdShort()))
+                .filter(Operation.class::isInstance)
+                .map(Operation.class::cast)
+                .findFirst()
+                .orElse(null);
+        if (Objects.isNull(operation)) {
+            List<OperationVariable> inputVariables = List.of(
+                    ARG_CURRENT_TIME,
+                    ARG_TIME_STEP,
+                    ARG_STEP_COUNT,
+                    newMultiStepArg(FmuHelper.getInputArgumentsMetadata(fmu)));
+            List<OperationVariable> outputVariables = List.of(newMultiStepResult(FmuHelper.getOutputArgumentsMetadata(fmu)));
+            operation = new DefaultOperation.Builder()
+                    .idShort(modelName)
+                    .inputVariables(inputVariables)
+                    .outputVariables(outputVariables)
+                    .build();
+            submodel.getSubmodelElements().add(operation);
+        }
         assetConnectionManager.registerLambdaOperationProvider(
                 ReferenceBuilder.forSubmodel(submodel, operation),
                 LambdaOperationProvider.builder()
@@ -449,15 +374,6 @@ public class SimulationSubmodelTemplateProcessor implements SubmodelTemplateProc
                                                 .toList())
                                 .build())
                         .build())
-                .build();
-    }
-
-
-    private static OperationVariable newInstanceNameArg(String instanceName) {
-        Property property = DeepCopyHelper.deepCopy(ARG_INSTANCE_NAME.getValue(), Property.class);
-        property.setValue(instanceName);
-        return new DefaultOperationVariable.Builder()
-                .value(property)
                 .build();
     }
 
