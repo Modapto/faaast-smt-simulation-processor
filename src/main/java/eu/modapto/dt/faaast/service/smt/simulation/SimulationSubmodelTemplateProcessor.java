@@ -175,6 +175,7 @@ public class SimulationSubmodelTemplateProcessor implements SubmodelTemplateProc
                 String name = getModelName(modelSMC);
                 Reference fmuFileRef = SEMANTIC_ID_PATH_TO_FMU_FILE.resolveUnique(submodel, KeyTypes.FILE);
                 byte[] fmuBinary = serviceContext.execute(GetFileByPathRequest.builder()
+                        .internal()
                         .submodelId(ReferenceHelper.findFirstKeyType(fmuFileRef, KeyTypes.SUBMODEL))
                         .path(ReferenceHelper.toPath(fmuFileRef))
                         .build())
