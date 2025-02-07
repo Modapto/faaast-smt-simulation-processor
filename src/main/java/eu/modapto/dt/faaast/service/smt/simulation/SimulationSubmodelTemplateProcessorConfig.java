@@ -15,11 +15,31 @@
 package eu.modapto.dt.faaast.service.smt.simulation;
 
 import de.fraunhofer.iosb.ilt.faaast.service.submodeltemplate.SubmodelTemplateProcessorConfig;
+import org.eclipse.digitaltwin.aas4j.v3.model.builder.ExtendableBuilder;
 
 
 /**
  * Configuration class for {@link SimulationSubmodelTemplateProcessor}.
  */
 public class SimulationSubmodelTemplateProcessorConfig extends SubmodelTemplateProcessorConfig<SimulationSubmodelTemplateProcessor> {
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder extends ExtendableBuilder<SimulationSubmodelTemplateProcessorConfig, Builder> {
+
+        @Override
+        protected Builder getSelf() {
+            return this;
+        }
+
+
+        @Override
+        protected SimulationSubmodelTemplateProcessorConfig newBuildingInstance() {
+            return new SimulationSubmodelTemplateProcessorConfig();
+        }
+
+    }
 
 }
