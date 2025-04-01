@@ -139,7 +139,6 @@ public class SimulationSubmodelTemplateProcessor implements SubmodelTemplateProc
     private static final Map<Reference, Fmu> fmus = new HashMap<>();
     private static final Map<String, CoSimulationSlave> fmuInstances = new HashMap<>();
     private static final SemanticIdPath SEMANTIC_ID_PATH_TO_FMU_FILE = SemanticIdPath.builder()
-            .semanticId(SEMANTIC_ID_SIMULATION_MODEL)
             .semanticId(SEMANTIC_ID_MODEL_FILE)
             .semanticId(SEMANTIC_ID_MODEL_FILE_VERSION)
             .semanticId(SEMANTIC_ID_DIGITAL_FILE)
@@ -169,13 +168,17 @@ public class SimulationSubmodelTemplateProcessor implements SubmodelTemplateProc
                 .filter(Objects::nonNull)
                 .filter(SubmodelElementCollection.class::isInstance)
                 .map(SubmodelElementCollection.class::cast)
+                .filter(x -> ReferenceHelper.equals(SEMANTIC_ID_SIMULATION_MODEL, x.getSemanticId()))
                 .toList();
         LOGGER.debug("Found {} simulation model SMCs for submodel (idShort: {}, id: {})", modelSMCs.size(), submodel.getIdShort(), submodel.getId());
         boolean modified = false;
         for (SubmodelElementCollection modelSMC: modelSMCs) {
             try {
                 String name = getModelName(modelSMC);
-                Reference fmuFileRef = SEMANTIC_ID_PATH_TO_FMU_FILE.resolveUnique(submodel, KeyTypes.FILE);
+                Reference fmuFileRef = ReferenceHelper.combine(
+                        ReferenceBuilder.forSubmodel(submodel),
+                        SEMANTIC_ID_PATH_TO_FMU_FILE.resolveUnique(modelSMC, KeyTypes.FILE));
+
                 GetFileByPathResponse response = serviceContext.execute(GetFileByPathRequest.builder()
                         .internal()
                         .submodelId(ReferenceHelper.findFirstKeyType(fmuFileRef, KeyTypes.SUBMODEL))
