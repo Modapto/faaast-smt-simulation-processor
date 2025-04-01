@@ -27,6 +27,7 @@ import de.fraunhofer.iosb.ilt.faaast.service.exception.ConfigurationException;
 import de.fraunhofer.iosb.ilt.faaast.service.exception.ConfigurationInitializationException;
 import de.fraunhofer.iosb.ilt.faaast.service.model.EnvironmentContext;
 import de.fraunhofer.iosb.ilt.faaast.service.model.TypedInMemoryFile;
+import de.fraunhofer.iosb.ilt.faaast.service.model.api.StatusCode;
 import de.fraunhofer.iosb.ilt.faaast.service.model.api.response.submodel.GetFileByPathResponse;
 import de.fraunhofer.iosb.ilt.faaast.service.model.exception.ResourceNotFoundException;
 import de.fraunhofer.iosb.ilt.faaast.service.util.ReferenceBuilder;
@@ -64,6 +65,7 @@ public class SimulationSubmodelTemplateProcessorTest {
                 .read(SimulationSubmodelTemplateProcessorTest.class.getResourceAsStream("/aas-with-bouncing-ball.aasx"));
 
         when(service.execute(any())).thenReturn(GetFileByPathResponse.builder()
+                .statusCode(StatusCode.SUCCESS)
                 .payload(new TypedInMemoryFile.Builder()
                         .content(environment.getFiles().get(0).getFileContent())
                         .build())

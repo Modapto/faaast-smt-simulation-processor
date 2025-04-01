@@ -21,6 +21,7 @@ import de.fraunhofer.iosb.ilt.faaast.service.config.CoreConfig;
 import de.fraunhofer.iosb.ilt.faaast.service.exception.ConfigurationInitializationException;
 import de.fraunhofer.iosb.ilt.faaast.service.model.SemanticIdPath;
 import de.fraunhofer.iosb.ilt.faaast.service.model.api.request.submodel.GetFileByPathRequest;
+import de.fraunhofer.iosb.ilt.faaast.service.model.api.response.submodel.GetFileByPathResponse;
 import de.fraunhofer.iosb.ilt.faaast.service.model.submodeltemplate.Cardinality;
 import de.fraunhofer.iosb.ilt.faaast.service.submodeltemplate.SubmodelTemplateProcessor;
 import de.fraunhofer.iosb.ilt.faaast.service.util.LambdaExceptionHelper;
@@ -33,6 +34,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import no.ntnu.ihb.fmi4j.importer.fmi2.CoSimulationSlave;
 import no.ntnu.ihb.fmi4j.importer.fmi2.Fmu;
@@ -174,13 +176,23 @@ public class SimulationSubmodelTemplateProcessor implements SubmodelTemplateProc
             try {
                 String name = getModelName(modelSMC);
                 Reference fmuFileRef = SEMANTIC_ID_PATH_TO_FMU_FILE.resolveUnique(submodel, KeyTypes.FILE);
-                byte[] fmuBinary = serviceContext.execute(GetFileByPathRequest.builder()
+                GetFileByPathResponse response = serviceContext.execute(GetFileByPathRequest.builder()
                         .internal()
                         .submodelId(ReferenceHelper.findFirstKeyType(fmuFileRef, KeyTypes.SUBMODEL))
                         .path(ReferenceHelper.toPath(fmuFileRef))
-                        .build())
-                        .getPayload()
-                        .getContent();
+                        .build());
+                if (!response.getStatusCode().isSuccess() || Objects.isNull(response.getPayload())) {
+                    LOGGER.warn("Failed to load FMU for SMT Simulation (submodelId: {}{})", submodel.getId());
+                    if (Objects.nonNull(response.getResult()) && Objects.nonNull(response.getResult().getMessages())) {
+                        LOGGER.warn("Reason: "
+                                + System.lineSeparator()
+                                + response.getResult().getMessages().stream()
+                                        .map(x -> String.format("   [%s] %s (code: %s)", x.getMessageType(), x.getText(), x.getCode()))
+                                        .collect(Collectors.joining(System.lineSeparator())));
+                    }
+                    continue;
+                }
+                byte[] fmuBinary = response.getPayload().getContent();
                 Fmu fmu = FmuHelper.loadFmu(name, fmuBinary);
                 fmus.put(ReferenceBuilder.forSubmodel(submodel, modelSMC), fmu);
                 addRunSimulationOperation(submodel, assetConnectionManager, name, fmu);
