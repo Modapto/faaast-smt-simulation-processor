@@ -23,6 +23,18 @@ import org.eclipse.digitaltwin.aas4j.v3.model.builder.ExtendableBuilder;
  */
 public class SimulationSubmodelTemplateProcessorConfig extends SubmodelTemplateProcessorConfig<SimulationSubmodelTemplateProcessor> {
 
+    private boolean returnResultsForEachStep = false;
+
+    public boolean getReturnResultsForEachStep() {
+        return returnResultsForEachStep;
+    }
+
+
+    public void setReturnResultsForEachStep(boolean returnResultsForEachStep) {
+        this.returnResultsForEachStep = returnResultsForEachStep;
+    }
+
+
     public static Builder builder() {
         return new Builder();
     }
@@ -38,6 +50,12 @@ public class SimulationSubmodelTemplateProcessorConfig extends SubmodelTemplateP
         @Override
         protected SimulationSubmodelTemplateProcessorConfig newBuildingInstance() {
             return new SimulationSubmodelTemplateProcessorConfig();
+        }
+
+
+        public Builder returnResultsForEachStep(boolean value) {
+            getBuildingInstance().setReturnResultsForEachStep(value);
+            return getSelf();
         }
 
     }

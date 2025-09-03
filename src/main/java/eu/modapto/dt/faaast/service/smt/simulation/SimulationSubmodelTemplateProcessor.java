@@ -14,11 +14,29 @@
  */
 package eu.modapto.dt.faaast.service.smt.simulation;
 
+import static eu.modapto.dt.faaast.service.smt.simulation.Constants.ARG_ARGS_PER_STEP_ID;
+import static eu.modapto.dt.faaast.service.smt.simulation.Constants.ARG_CURRENT_TIME;
+import static eu.modapto.dt.faaast.service.smt.simulation.Constants.ARG_CURRENT_TIME_ID;
+import static eu.modapto.dt.faaast.service.smt.simulation.Constants.ARG_RESULT_PER_STEP_ID;
+import static eu.modapto.dt.faaast.service.smt.simulation.Constants.ARG_STEP_COUNT;
+import static eu.modapto.dt.faaast.service.smt.simulation.Constants.ARG_STEP_COUNT_ID;
+import static eu.modapto.dt.faaast.service.smt.simulation.Constants.ARG_STEP_NUMBER_ID;
+import static eu.modapto.dt.faaast.service.smt.simulation.Constants.ARG_TIME_STEP;
+import static eu.modapto.dt.faaast.service.smt.simulation.Constants.ARG_TIME_STEP_ID;
+import static eu.modapto.dt.faaast.service.smt.simulation.Constants.SEMANTIC_ID_DIGITAL_FILE;
+import static eu.modapto.dt.faaast.service.smt.simulation.Constants.SEMANTIC_ID_MODEL_FILE;
+import static eu.modapto.dt.faaast.service.smt.simulation.Constants.SEMANTIC_ID_MODEL_FILE_VERSION;
+import static eu.modapto.dt.faaast.service.smt.simulation.Constants.SEMANTIC_ID_PARAM_FILE;
+import static eu.modapto.dt.faaast.service.smt.simulation.Constants.SEMANTIC_ID_SIMULATION_MODEL;
+import static eu.modapto.dt.faaast.service.smt.simulation.Constants.SEMANTIC_ID_SMT_SIMULATION;
+import static eu.modapto.dt.faaast.service.smt.simulation.Constants.SMC_SIMULATION_MODELS_PREFIX;
+
 import de.fraunhofer.iosb.ilt.faaast.service.ServiceContext;
 import de.fraunhofer.iosb.ilt.faaast.service.assetconnection.AssetConnectionManager;
 import de.fraunhofer.iosb.ilt.faaast.service.assetconnection.lambda.provider.LambdaOperationProvider;
 import de.fraunhofer.iosb.ilt.faaast.service.config.CoreConfig;
 import de.fraunhofer.iosb.ilt.faaast.service.exception.ConfigurationInitializationException;
+import de.fraunhofer.iosb.ilt.faaast.service.model.IdShortPath;
 import de.fraunhofer.iosb.ilt.faaast.service.model.SemanticIdPath;
 import de.fraunhofer.iosb.ilt.faaast.service.model.api.request.submodel.GetFileByPathRequest;
 import de.fraunhofer.iosb.ilt.faaast.service.model.api.response.submodel.GetFileByPathResponse;
@@ -27,12 +45,14 @@ import de.fraunhofer.iosb.ilt.faaast.service.submodeltemplate.SubmodelTemplatePr
 import de.fraunhofer.iosb.ilt.faaast.service.util.LambdaExceptionHelper;
 import de.fraunhofer.iosb.ilt.faaast.service.util.ReferenceBuilder;
 import de.fraunhofer.iosb.ilt.faaast.service.util.ReferenceHelper;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -40,6 +60,7 @@ import no.ntnu.ihb.fmi4j.importer.fmi2.CoSimulationSlave;
 import no.ntnu.ihb.fmi4j.importer.fmi2.Fmu;
 import org.eclipse.digitaltwin.aas4j.v3.model.AasSubmodelElements;
 import org.eclipse.digitaltwin.aas4j.v3.model.DataTypeDefXsd;
+import org.eclipse.digitaltwin.aas4j.v3.model.File;
 import org.eclipse.digitaltwin.aas4j.v3.model.KeyTypes;
 import org.eclipse.digitaltwin.aas4j.v3.model.Operation;
 import org.eclipse.digitaltwin.aas4j.v3.model.OperationVariable;
@@ -50,7 +71,6 @@ import org.eclipse.digitaltwin.aas4j.v3.model.Submodel;
 import org.eclipse.digitaltwin.aas4j.v3.model.SubmodelElement;
 import org.eclipse.digitaltwin.aas4j.v3.model.SubmodelElementCollection;
 import org.eclipse.digitaltwin.aas4j.v3.model.SubmodelElementList;
-import org.eclipse.digitaltwin.aas4j.v3.model.impl.DefaultLangStringTextType;
 import org.eclipse.digitaltwin.aas4j.v3.model.impl.DefaultOperation;
 import org.eclipse.digitaltwin.aas4j.v3.model.impl.DefaultOperationVariable;
 import org.eclipse.digitaltwin.aas4j.v3.model.impl.DefaultProperty;
@@ -68,81 +88,8 @@ public class SimulationSubmodelTemplateProcessor implements SubmodelTemplateProc
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SubmodelTemplateProcessor.class);
 
-    private static final Reference SEMANTIC_ID_SMT_SIMULATION = ReferenceBuilder.global(
-            "https://admin-shell.io/idta/SimulationModels/SimulationModels/1/0");
-
-    private static final Reference SEMANTIC_ID_SIMULATION_MODEL = ReferenceBuilder.global(
-            "https://admin-shell.io/idta/SimulationModels/SimulationModel/1/0");
-
-    private static final Reference SEMANTIC_ID_MODEL_FILE = ReferenceBuilder.global(
-            "https://admin-shell.io/idta/SimulationModels/ModelFile/1/0");
-
-    private static final Reference SEMANTIC_ID_MODEL_FILE_VERSION = ReferenceBuilder.global(
-            "https://admin-shell.io/idta/SimulationModels/ModelFileVersion/1/0");
-
-    private static final Reference SEMANTIC_ID_DIGITAL_FILE = ReferenceBuilder.global(
-            "https://admin-shell.io/idta/SimulationModels/DigitalFile/1/0");
-
-    private static final String ARG_INSTANCE_NAME_ID = "instanceName";
-    private static final String ARG_CURRENT_TIME_ID = "currentTime";
-    private static final String ARG_TIME_STEP_ID = "timeStep";
-    private static final String ARG_STEP_NUMBER_ID = "stepNumber";
-    private static final String ARG_STEP_COUNT_ID = "stepCount";
-    private static final String ARG_ARGS_PER_STEP_ID = "argumentsPerStep";
-    private static final String ARG_RESULT_PER_STEP_ID = "resultPerStep";
-
-    private static final String SMC_SIMULATION_MODELS_PREFIX = "SimulationModel_";
-
-    private static final OperationVariable ARG_INSTANCE_NAME = new DefaultOperationVariable.Builder()
-            .value(new DefaultProperty.Builder()
-                    .idShort(ARG_INSTANCE_NAME_ID)
-                    .description(new DefaultLangStringTextType.Builder()
-                            .language("en")
-                            .text("name of the newly created instance")
-                            .build())
-                    .valueType(DataTypeDefXsd.STRING)
-                    .build())
-            .build();
-    private static final OperationVariable ARG_CURRENT_TIME = new DefaultOperationVariable.Builder()
-            .value(new DefaultProperty.Builder()
-                    .idShort(ARG_CURRENT_TIME_ID)
-                    .description(new DefaultLangStringTextType.Builder()
-                            .language("en")
-                            .text("name of the newly created instance")
-                            .build())
-                    .valueType(DataTypeDefXsd.STRING)
-                    .build())
-            .build();
-
-    private static final OperationVariable ARG_TIME_STEP = new DefaultOperationVariable.Builder()
-            .value(new DefaultProperty.Builder()
-                    .idShort(ARG_TIME_STEP_ID)
-                    .description(new DefaultLangStringTextType.Builder()
-                            .language("en")
-                            .text("time step size")
-                            .build())
-                    .valueType(DataTypeDefXsd.DOUBLE)
-                    .build())
-            .build();
-
-    private static final OperationVariable ARG_STEP_COUNT = new DefaultOperationVariable.Builder()
-            .value(new DefaultProperty.Builder()
-                    .idShort(ARG_STEP_COUNT_ID)
-                    .description(new DefaultLangStringTextType.Builder()
-                            .language("en")
-                            .text("number of steps to execute")
-                            .build())
-                    .valueType(DataTypeDefXsd.INTEGER)
-                    .build())
-            .build();
-
     private static final Map<Reference, Fmu> fmus = new HashMap<>();
     private static final Map<String, CoSimulationSlave> fmuInstances = new HashMap<>();
-    private static final SemanticIdPath SEMANTIC_ID_PATH_TO_FMU_FILE = SemanticIdPath.builder()
-            .semanticId(SEMANTIC_ID_MODEL_FILE)
-            .semanticId(SEMANTIC_ID_MODEL_FILE_VERSION)
-            .semanticId(SEMANTIC_ID_DIGITAL_FILE)
-            .build();
 
     private SimulationSubmodelTemplateProcessorConfig config;
     private ServiceContext serviceContext;
@@ -162,46 +109,58 @@ public class SimulationSubmodelTemplateProcessor implements SubmodelTemplateProc
     }
 
 
+    private byte[] getFmuFile(Submodel submodel, SubmodelElementCollection smcSimulationModel) {
+        try {
+            Reference fmuFileRef = ReferenceHelper.combine(
+                    ReferenceBuilder.forSubmodel(submodel),
+                    SemanticIdPath.builder()
+                            .semanticId(SEMANTIC_ID_MODEL_FILE)
+                            .semanticId(SEMANTIC_ID_MODEL_FILE_VERSION)
+                            .semanticId(SEMANTIC_ID_DIGITAL_FILE)
+                            .build()
+                            .resolveUnique(smcSimulationModel, KeyTypes.FILE));
+            GetFileByPathResponse response = serviceContext.execute(GetFileByPathRequest.builder()
+                    .internal()
+                    .submodelId(submodel.getId())
+                    .path(ReferenceHelper.toPath(fmuFileRef))
+                    .build());
+            if (!response.getStatusCode().isSuccess() || Objects.isNull(response.getPayload())) {
+                if (Objects.nonNull(response.getResult()) && Objects.nonNull(response.getResult().getMessages())) {
+                    LOGGER.warn("Reason: "
+                            + System.lineSeparator()
+                            + response.getResult().getMessages().stream()
+                                    .map(x -> String.format("   [%s] %s (code: %s)", x.getMessageType(), x.getText(), x.getCode()))
+                                    .collect(Collectors.joining(System.lineSeparator())));
+                    throw new FmuException(String.format("Failed to load FMU for SMT Simulation (submodelId: %s)", submodel.getId()));
+                }
+
+            }
+            return response.getPayload().getContent();
+        }
+        catch (Exception e) {
+            throw new FmuException(String.format("Failed to load FMU for SMT Simulation (submodelId: %s)", submodel.getId()), e);
+        }
+    }
+
+
     @Override
     public boolean process(Submodel submodel, AssetConnectionManager assetConnectionManager) {
-        List<SubmodelElementCollection> modelSMCs = submodel.getSubmodelElements().stream()
-                .filter(Objects::nonNull)
-                .filter(SubmodelElementCollection.class::isInstance)
-                .map(SubmodelElementCollection.class::cast)
-                .filter(x -> ReferenceHelper.equals(SEMANTIC_ID_SIMULATION_MODEL, x.getSemanticId()))
-                .toList();
-        LOGGER.debug("Found {} simulation model SMCs for submodel (idShort: {}, id: {})", modelSMCs.size(), submodel.getIdShort(), submodel.getId());
+        List<SubmodelElementCollection> smcSimulationModels = SemanticIdPath.builder()
+                .semanticId(SEMANTIC_ID_SIMULATION_MODEL)
+                .build()
+                .resolve(submodel, SubmodelElementCollection.class);
+        LOGGER.debug("Found {} simulation model SMCs for submodel (idShort: {}, id: {})", smcSimulationModels.size(), submodel.getIdShort(), submodel.getId());
         boolean modified = false;
-        for (SubmodelElementCollection modelSMC: modelSMCs) {
+        for (SubmodelElementCollection smcSimulationModel: smcSimulationModels) {
             try {
-                String name = getModelName(modelSMC);
-                Reference fmuFileRef = ReferenceHelper.combine(
-                        ReferenceBuilder.forSubmodel(submodel),
-                        SEMANTIC_ID_PATH_TO_FMU_FILE.resolveUnique(modelSMC, KeyTypes.FILE));
-
-                GetFileByPathResponse response = serviceContext.execute(GetFileByPathRequest.builder()
-                        .internal()
-                        .submodelId(ReferenceHelper.findFirstKeyType(fmuFileRef, KeyTypes.SUBMODEL))
-                        .path(ReferenceHelper.toPath(fmuFileRef))
-                        .build());
-                if (!response.getStatusCode().isSuccess() || Objects.isNull(response.getPayload())) {
-                    LOGGER.warn("Failed to load FMU for SMT Simulation (submodelId: {}{})", submodel.getId());
-                    if (Objects.nonNull(response.getResult()) && Objects.nonNull(response.getResult().getMessages())) {
-                        LOGGER.warn("Reason: "
-                                + System.lineSeparator()
-                                + response.getResult().getMessages().stream()
-                                        .map(x -> String.format("   [%s] %s (code: %s)", x.getMessageType(), x.getText(), x.getCode()))
-                                        .collect(Collectors.joining(System.lineSeparator())));
-                    }
-                    continue;
-                }
-                byte[] fmuBinary = response.getPayload().getContent();
+                String name = getModelName(smcSimulationModel);
+                byte[] fmuBinary = getFmuFile(submodel, smcSimulationModel);
                 Fmu fmu = FmuHelper.loadFmu(name, fmuBinary);
-                fmus.put(ReferenceBuilder.forSubmodel(submodel, modelSMC), fmu);
-                addRunSimulationOperation(submodel, assetConnectionManager, name, fmu);
+                fmus.put(ReferenceBuilder.forSubmodel(submodel, smcSimulationModel), fmu);
+                addRunSimulationOperation(submodel, assetConnectionManager, name, fmu, getInitialParameters(submodel, smcSimulationModel));
                 modified = true;
             }
-            catch (IOException e) {
+            catch (Exception e) {
                 LOGGER.warn("Error loading FMU model (idShort: {}, id: {})", submodel.getIdShort(), submodel.getId(), e);
             }
         }
@@ -209,7 +168,41 @@ public class SimulationSubmodelTemplateProcessor implements SubmodelTemplateProc
     }
 
 
-    private void addRunSimulationOperation(Submodel submodel, AssetConnectionManager assetConnectionManager, String modelName, Fmu fmu) throws IOException {
+    private Map<String, String> getInitialParameters(Submodel submodel, SubmodelElementCollection smcSimulation) {
+        Map<String, String> result = new HashMap<>();
+        try {
+            Optional<File> paramFile = SemanticIdPath.builder()
+                    .semanticId(SEMANTIC_ID_PARAM_FILE)
+                    .build()
+                    .resolveOptional(smcSimulation, File.class);
+            if (paramFile.isEmpty()) {
+                return result;
+            }
+            byte[] paramFileContent = serviceContext.execute(
+                    GetFileByPathRequest.builder()
+                            .internal()
+                            .submodelId(submodel.getId())
+                            .path(IdShortPath.builder()
+                                    .idShort(smcSimulation.getIdShort())
+                                    .idShort(paramFile.get().getIdShort())
+                                    .build().toString())
+                            .build())
+                    .getPayload()
+                    .getContent();
+
+            Properties properties = new Properties();
+            properties.load(new ByteArrayInputStream(paramFileContent));
+            result = properties.stringPropertyNames().stream().collect(Collectors.toMap(x -> x, x -> properties.getProperty(x)));
+        }
+        catch (IOException e) {
+            LOGGER.warn("Failed to to initial parameters for SMT Simulation (submodelId: {})", submodel.getId(), e);
+        }
+        return result;
+    }
+
+
+    private void addRunSimulationOperation(Submodel submodel, AssetConnectionManager assetConnectionManager, String modelName, Fmu fmu, Map<String, String> initalParameters)
+            throws IOException {
         Operation operation = submodel.getSubmodelElements().stream()
                 .filter(x -> Objects.equals(modelName, x.getIdShort()))
                 .filter(Operation.class::isInstance)
@@ -217,16 +210,14 @@ public class SimulationSubmodelTemplateProcessor implements SubmodelTemplateProc
                 .findFirst()
                 .orElse(null);
         if (Objects.isNull(operation)) {
-            List<OperationVariable> inputVariables = List.of(
-                    ARG_CURRENT_TIME,
-                    ARG_TIME_STEP,
-                    ARG_STEP_COUNT,
-                    newMultiStepArg(FmuHelper.getInputArgumentsMetadata(fmu)));
-            List<OperationVariable> outputVariables = List.of(newMultiStepResult(FmuHelper.getOutputArgumentsMetadata(fmu)));
             operation = new DefaultOperation.Builder()
                     .idShort(modelName)
-                    .inputVariables(inputVariables)
-                    .outputVariables(outputVariables)
+                    .inputVariables(List.of(
+                            ARG_CURRENT_TIME,
+                            ARG_TIME_STEP,
+                            ARG_STEP_COUNT,
+                            newMultiStepArg(FmuHelper.getInputArgumentsMetadata(fmu))))
+                    .outputVariables(FmuHelper.getOutputArgumentsMetadata(fmu, config.getReturnResultsForEachStep()))
                     .build();
             submodel.getSubmodelElements().add(operation);
         }
@@ -234,18 +225,19 @@ public class SimulationSubmodelTemplateProcessor implements SubmodelTemplateProc
                 ReferenceBuilder.forSubmodel(submodel, operation),
                 LambdaOperationProvider.builder()
                         .handle(LambdaExceptionHelper.rethrowBiFunction((OperationVariable[] input, OperationVariable[] inoutput) -> {
-                            return handleRunSimulationOperation(fmu, input, inoutput);
+                            return handleRunSimulationOperation(fmu, initalParameters, input, inoutput);
                         }))
                         .build());
     }
 
 
-    private OperationVariable[] handleRunSimulationOperation(Fmu fmu, OperationVariable[] input, OperationVariable[] inoutput) throws IOException {
+    private OperationVariable[] handleRunSimulationOperation(Fmu fmu, Map<String, String> initialParameters, OperationVariable[] input, OperationVariable[] inoutput)
+            throws IOException {
         int stepCount = Integer.parseInt(requireArgument(input, ARG_STEP_COUNT_ID, DataTypeDefXsd.INTEGER));
         double t = Double.parseDouble(optionalArgument(inoutput, ARG_CURRENT_TIME_ID, DataTypeDefXsd.DOUBLE).orElse("0"));
         double dt = Double.parseDouble(requireArgument(input, ARG_TIME_STEP_ID, DataTypeDefXsd.DOUBLE));
         Map<Integer, List<OperationVariable>> multiStepInput = parseMultiStepInput(input);
-        CoSimulationSlave fmuInstance = FmuHelper.createInstance(UUID.randomUUID().toString(), fmu, List.of());
+        CoSimulationSlave fmuInstance = FmuHelper.createInstance(UUID.randomUUID().toString(), fmu, initialParameters);
         SubmodelElementList resultList = new DefaultSubmodelElementList.Builder()
                 .idShort(ARG_RESULT_PER_STEP_ID)
                 .build();
@@ -268,11 +260,14 @@ public class SimulationSubmodelTemplateProcessor implements SubmodelTemplateProc
                     .build());
             t += dt;
         }
-        return new OperationVariable[] {
-                new DefaultOperationVariable.Builder()
-                        .value(resultList)
-                        .build()
-        };
+        if (config.getReturnResultsForEachStep()) {
+            return new OperationVariable[] {
+                    new DefaultOperationVariable.Builder()
+                            .value(resultList)
+                            .build()
+            };
+        }
+        return FmuHelper.getOutputArgumentsWithValues(fmuInstance).toArray(OperationVariable[]::new);
     }
 
 
@@ -368,26 +363,6 @@ public class SimulationSubmodelTemplateProcessor implements SubmodelTemplateProc
                                         .value(Cardinality.ZERO_TO_MANY.getNameForSerialization())
                                         .type(Cardinality.class.getSimpleName())
                                         .build())
-                                .build())
-                        .build())
-                .build();
-    }
-
-
-    private static OperationVariable newMultiStepResult(List<OperationVariable> originalArgs) {
-        return new DefaultOperationVariable.Builder()
-                .value(new DefaultSubmodelElementList.Builder()
-                        .idShort(ARG_RESULT_PER_STEP_ID)
-                        .typeValueListElement(AasSubmodelElements.SUBMODEL_ELEMENT_COLLECTION)
-                        .value(new DefaultSubmodelElementCollection.Builder()
-                                .value(
-                                        Stream.concat(
-                                                Stream.of(new DefaultProperty.Builder()
-                                                        .idShort(ARG_STEP_NUMBER_ID)
-                                                        .valueType(DataTypeDefXsd.INTEGER)
-                                                        .build()),
-                                                originalArgs.stream().map(OperationVariable::getValue))
-                                                .toList())
                                 .build())
                         .build())
                 .build();
