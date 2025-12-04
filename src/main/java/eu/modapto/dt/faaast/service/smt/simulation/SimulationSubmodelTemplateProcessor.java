@@ -40,8 +40,11 @@ import de.fraunhofer.iosb.ilt.faaast.service.model.IdShortPath;
 import de.fraunhofer.iosb.ilt.faaast.service.model.SemanticIdPath;
 import de.fraunhofer.iosb.ilt.faaast.service.model.api.request.submodel.GetFileByPathRequest;
 import de.fraunhofer.iosb.ilt.faaast.service.model.api.response.submodel.GetFileByPathResponse;
+import de.fraunhofer.iosb.ilt.faaast.service.model.exception.AmbiguousElementException;
+import de.fraunhofer.iosb.ilt.faaast.service.model.exception.ResourceNotFoundException;
 import de.fraunhofer.iosb.ilt.faaast.service.model.submodeltemplate.Cardinality;
 import de.fraunhofer.iosb.ilt.faaast.service.submodeltemplate.SubmodelTemplateProcessor;
+import de.fraunhofer.iosb.ilt.faaast.service.util.EnvironmentHelper;
 import de.fraunhofer.iosb.ilt.faaast.service.util.LambdaExceptionHelper;
 import de.fraunhofer.iosb.ilt.faaast.service.util.ReferenceBuilder;
 import de.fraunhofer.iosb.ilt.faaast.service.util.ReferenceHelper;
@@ -71,6 +74,7 @@ import org.eclipse.digitaltwin.aas4j.v3.model.Submodel;
 import org.eclipse.digitaltwin.aas4j.v3.model.SubmodelElement;
 import org.eclipse.digitaltwin.aas4j.v3.model.SubmodelElementCollection;
 import org.eclipse.digitaltwin.aas4j.v3.model.SubmodelElementList;
+import org.eclipse.digitaltwin.aas4j.v3.model.impl.DefaultExtension;
 import org.eclipse.digitaltwin.aas4j.v3.model.impl.DefaultOperation;
 import org.eclipse.digitaltwin.aas4j.v3.model.impl.DefaultOperationVariable;
 import org.eclipse.digitaltwin.aas4j.v3.model.impl.DefaultProperty;
@@ -109,16 +113,21 @@ public class SimulationSubmodelTemplateProcessor implements SubmodelTemplateProc
     }
 
 
+    private static Reference getFmuFileReference(Submodel submodel, SubmodelElementCollection smcSimulationModel) throws ResourceNotFoundException {
+        return ReferenceHelper.combine(
+                ReferenceBuilder.forSubmodel(submodel),
+                SemanticIdPath.builder()
+                        .semanticId(SEMANTIC_ID_MODEL_FILE)
+                        .semanticId(SEMANTIC_ID_MODEL_FILE_VERSION)
+                        .semanticId(SEMANTIC_ID_DIGITAL_FILE)
+                        .build()
+                        .resolveUnique(smcSimulationModel, KeyTypes.FILE));
+    }
+
+
     private byte[] getFmuFile(Submodel submodel, SubmodelElementCollection smcSimulationModel) {
         try {
-            Reference fmuFileRef = ReferenceHelper.combine(
-                    ReferenceBuilder.forSubmodel(submodel),
-                    SemanticIdPath.builder()
-                            .semanticId(SEMANTIC_ID_MODEL_FILE)
-                            .semanticId(SEMANTIC_ID_MODEL_FILE_VERSION)
-                            .semanticId(SEMANTIC_ID_DIGITAL_FILE)
-                            .build()
-                            .resolveUnique(smcSimulationModel, KeyTypes.FILE));
+            Reference fmuFileRef = getFmuFileReference(submodel, smcSimulationModel);
             GetFileByPathResponse response = serviceContext.execute(GetFileByPathRequest.builder()
                     .internal()
                     .submodelId(submodel.getId())
@@ -157,7 +166,13 @@ public class SimulationSubmodelTemplateProcessor implements SubmodelTemplateProc
                 byte[] fmuBinary = getFmuFile(submodel, smcSimulationModel);
                 Fmu fmu = FmuHelper.loadFmu(name, fmuBinary);
                 fmus.put(ReferenceBuilder.forSubmodel(submodel, smcSimulationModel), fmu);
-                addRunSimulationOperation(submodel, assetConnectionManager, name, fmu, getInitialParameters(submodel, smcSimulationModel));
+                addRunSimulationOperation(
+                        submodel,
+                        assetConnectionManager,
+                        name,
+                        getFmuFileReference(submodel, smcSimulationModel),
+                        fmu,
+                        getInitialParameters(submodel, smcSimulationModel));
                 modified = true;
             }
             catch (Exception e) {
@@ -201,17 +216,34 @@ public class SimulationSubmodelTemplateProcessor implements SubmodelTemplateProc
     }
 
 
-    private void addRunSimulationOperation(Submodel submodel, AssetConnectionManager assetConnectionManager, String modelName, Fmu fmu, Map<String, String> initalParameters)
-            throws IOException {
-        Operation operation = submodel.getSubmodelElements().stream()
-                .filter(x -> Objects.equals(modelName, x.getIdShort()))
+    private static Operation findExistingOperationForFmu(Submodel submodel, Reference fmuReference) {
+        return submodel.getSubmodelElements().stream()
                 .filter(Operation.class::isInstance)
                 .map(Operation.class::cast)
+                .filter(x -> Objects.nonNull(x.getExtensions()))
+                .filter(x -> x.getExtensions().stream().anyMatch(e -> Objects.equals(Constants.EXTENSION_KEY_OPERATION_TO_DIGITAL_FILE_LINK, e.getName())
+                        && Objects.nonNull(ReferenceHelper.findSameReference(e.getRefersTo(), fmuReference))))
                 .findFirst()
                 .orElse(null);
+    }
+
+
+    private void addRunSimulationOperation(Submodel submodel,
+                                           AssetConnectionManager assetConnectionManager,
+                                           String modelName,
+                                           Reference fmuReference,
+                                           Fmu fmu,
+                                           Map<String, String> initalParameters)
+            throws IOException {
+        Operation operation = findExistingOperationForFmu(submodel, fmuReference);
         if (Objects.isNull(operation)) {
+            LOGGER.debug("creating new operation for FMU (FMU reference: {})", ReferenceHelper.asString(fmuReference));
             operation = new DefaultOperation.Builder()
                     .idShort(modelName)
+                    .extensions(new DefaultExtension.Builder()
+                            .name(Constants.EXTENSION_KEY_OPERATION_TO_DIGITAL_FILE_LINK)
+                            .refersTo(fmuReference)
+                            .build())
                     .inputVariables(List.of(
                             ARG_CURRENT_TIME,
                             ARG_TIME_STEP,
@@ -220,6 +252,17 @@ public class SimulationSubmodelTemplateProcessor implements SubmodelTemplateProc
                     .outputVariables(FmuHelper.getOutputArgumentsMetadata(fmu, config.getReturnResultsForEachStep()))
                     .build();
             submodel.getSubmodelElements().add(operation);
+        }
+        else {
+            try {
+                LOGGER.debug("reusing existing operation for FMU (FMU reference: {}, operation: {})",
+                        ReferenceHelper.asString(fmuReference),
+                        ReferenceHelper.asString(EnvironmentHelper.asReference(operation, submodel)));
+            }
+            catch (AmbiguousElementException e) {
+                LOGGER.debug("reusing existing operation for FMU - failed to compute new operation reference (FMU reference: {})",
+                        ReferenceHelper.asString(fmuReference));
+            }
         }
         assetConnectionManager.registerLambdaOperationProvider(
                 ReferenceBuilder.forSubmodel(submodel, operation),

@@ -29,6 +29,8 @@ import org.eclipse.digitaltwin.aas4j.v3.model.impl.DefaultProperty;
 public class Constants {
     private Constants() {}
 
+    public static final String EXTENSION_KEY_OPERATION_TO_DIGITAL_FILE_LINK = "smt-simulation:implements";
+
     public static final Reference SEMANTIC_ID_SMT_SIMULATION = ReferenceBuilder.global("https://admin-shell.io/idta/SimulationModels/SimulationModels/1/0");
     public static final Reference SEMANTIC_ID_SIMULATION_MODEL = ReferenceBuilder.global("https://admin-shell.io/idta/SimulationModels/SimulationModel/1/0");
     public static final Reference SEMANTIC_ID_MODEL_FILE = ReferenceBuilder.global("https://admin-shell.io/idta/SimulationModels/ModelFile/1/0");
